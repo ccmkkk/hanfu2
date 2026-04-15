@@ -14,7 +14,7 @@
           <input type="range" v-model="bodyShape" min="1" max="5" step="1">
         </div>
 
-        <!-- 肤色：冷白皮、暖黄皮、通用 -->
+        <!-- 肤色 -->
         <div class="control-group">
           <label><i class="fas fa-palette"></i> 肤色</label>
           <div class="skin-options">
@@ -174,6 +174,11 @@ const festivalEnabled = ref(false)
 const seasonInfoText = ref('')
 const seasonInfoFromApi = ref({ season: '春', fabric: '真丝', layers: '2-3层', festival: null })
 
+// 肤色选择处理
+function selectSkinTone(tone) {
+  skin_tone.value = tone
+}
+
 // ===================== API 调用 =====================
 async function getRecommend() {
   loading.value = true
@@ -235,7 +240,13 @@ async function fetchSeasonInfo() {
     const res = await axios.get('/api/season_info')
     const data = res.data
     seasonInfoFromApi.value = data
-    seasonInfoText.value = `${data.season}季 · ${data.fabric} ${data.layers}`
+    
+    // 添加默认值处理
+    const season = data.season || '春'
+    const fabric = data.fabric || '真丝'
+    const layers = data.layers || '2-3层'
+    
+    seasonInfoText.value = `${season}季 · ${fabric} ${layers}`
     applyColorScheme(data.color_scheme)
     if (data.festival && !festivalEnabled.value) {
       festivalEnabled.value = true
@@ -355,7 +366,7 @@ input[type="range"] {
   gap: 10px;
   flex-wrap: wrap;
 }
-.skin-btn, .gender-btn {
+.skin-btn, .gender-btn, .upload-btn {
   background: #f0e3d8;
   border: none;
   padding: 6px 14px;
@@ -364,11 +375,13 @@ input[type="range"] {
   font-size: 0.85rem;
   transition: 0.2s;
 }
-.skin-btn.active, .gender-btn.active {
+.skin-btn.active, .gender-btn.active, .upload-btn:hover {
   background: #b5654b;
   color: white;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
+
+
 select, .btn-primary {
   width: 100%;
   padding: 10px 12px;
