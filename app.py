@@ -496,6 +496,60 @@ def season_info():
         'color_scheme': {'primary': info['color_primary'], 'secondary': info['color_secondary']},
         'festival': festival
     })
+ #===================== 论坛数据库初始化 =====================
+# 在 app.py 中添加（如果还没有）
+def init_forum_db():
+    conn = get_rule_db()
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS forum_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nickname TEXT DEFAULT '匿名',
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ip TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_forum_db()
+
+@app.route('/api/posts', methods=['GET'])
+def get_posts():
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    offset = (page - 1) * per_page
+    conn = get_rule_db()
+    c = conn.cursor()
+    c.execute('''
+        SELECT id, nickname, content, created_at 
+        FROM forum_posts 
+        ORDER BY created_at DESC 
+        LIMIT ? OFFSET ?
+    ''', (per_page, offset))
+    rows = c.fetchall()
+    posts = [{'id': row[0], 'nickname': row[1], 'content': row[2], 'time': row[3]} for row in rows]
+    conn.close()
+    return jsonify({'posts': posts, 'has_more': len(posts) == per_page})
+
+@app.route('/api/posts', methods=['POST'])
+def add_post():
+    data = request.json
+    nickname = data.get('nickname', '匿名').strip()[:20]
+    content = data.get('content', '').strip()
+    if not content:
+        return jsonify({'error': '内容不能为空'}), 400
+    ip = request.remote_addr
+    conn = get_rule_db()
+    c = conn.cursor()
+    c.execute('INSERT INTO forum_posts (nickname, content, ip) VALUES (?, ?, ?)',
+              (nickname, content, ip))
+    conn.commit()
+    post_id = c.lastrowid
+    conn.close()
+    return jsonify({'id': post_id, 'message': '发布成功'}), 201
+
 if __name__ == '__main__':
     app.run(host="127.0.0.1", port=5000, debug=True)
 
