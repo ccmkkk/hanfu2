@@ -3,6 +3,17 @@
     <div class="back-button" @click="$emit('back')">
       <i class="fas fa-arrow-left"></i> 返回主菜单
     </div>
+
+    <!-- 国风装饰纹样（半透明，置于底层） -->
+    <div class="decor-clouds">
+      <i class="fas fa-cloud"></i>
+      <i class="fas fa-cloud-moon"></i>
+      <i class="fas fa-feather-alt"></i>
+      <i class="fas fa-leaf"></i>
+      <i class="fas fa-fan"></i>
+      <i class="fas fa-seedling"></i>
+    </div>
+
     <div class="recommend-dashboard">
       <!-- 左侧：用户画像编辑器 -->
       <div class="card-panel user-editor">
@@ -57,9 +68,11 @@
 
         <!-- 场景 -->
         <div class="control-group">
-          <label><i class="fas fa-umbrella-beach"></i> 场景</label>
-          <select v-model="scene">
-            <option v-for="s in scenes" :key="s" :value="s">{{ s }}</option>
+          <label><i class="fas fa-map-marker-alt"></i> 场景</label>
+          <select v-model="scene" class="your-select-class">
+            <option value="日常">日常</option>
+            <option value="拍照">拍照</option>
+            <option value="婚礼">婚礼</option>
           </select>
         </div>
 
@@ -85,12 +98,15 @@
           <div v-if="loading" class="loading"><i class="fas fa-spinner fa-pulse"></i> 霓裳推演中...</div>
           <div v-else-if="recommendList.length === 0" class="loading">😔 暂无匹配推荐，调整选项试试</div>
           <div v-else>
-            <div v-for="(item, idx) in recommendList" :key="idx"
-                 :class="['rec-card', { active: currentIndex === idx }]"
-                 @click="setActiveRecommendation(idx)">
-              <div class="rec-title">🏮 {{ item.套装 }}</div>
-              <div class="rec-score">🎯 综合评分: {{ item.综合评分 || item.朝代兼容分 }}</div>
-              <div class="rec-colors">{{ item.颜色 }}</div>
+            <div class="rec-card" v-for="(item, index) in recommendList" :key="index" @click="updateMeaningPanel(item)">
+              <div class="rec-title">{{ item.name }}</div>
+              <div class="rec-score">
+                历史适配度: <span style="color: #c9394a;">{{ item.dynasty_compatibility }}%</span> |
+                文化契合度: <span style="color: #c9394a;">{{ item.culture_match }}%</span>
+              </div>
+              <div class="rec-colors">
+                颜色：{{ item.color }} | 纹样：{{ item.pattern }}
+              </div>
             </div>
           </div>
         </div>
@@ -133,20 +149,35 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 
+const props = defineProps({
+  defaultGender: {
+    type: String,
+    default: ''
+  },
+  defaultSkinTone: {
+    type: String,
+    default: '暖黄皮'
+  },
+  defaultBodyShape: {
+    type: Number,
+    default: 3
+  }
+})
+
 defineEmits(['back'])
 
 // ===================== 用户选项 =====================
-const bodyShape = ref(3)
-const skin_tone = ref('暖黄皮')
-const gender = ref('女')
+const bodyShape = ref(props.defaultBodyShape)
+const skin_tone = ref(props.defaultSkinTone)
+const gender = ref(props.defaultGender || '女')
 const dynasty = ref('唐')
 const season = ref('春')
 const scene = ref('日常')
 
 const skinOptions = [
-  { label: '冷白皮', value: '冷白皮' },
-  { label: '暖黄皮', value: '暖黄皮' },
-  { label: '通用', value: '' }
+  { label: '冷皮', value: '冷皮' },
+  { label: '暖皮', value: '暖皮' },
+  { label: '通用', value: '通用' }
 ]
 const genderOptions = [
   { label: '女', value: '女' },
@@ -154,7 +185,7 @@ const genderOptions = [
   { label: '通用', value: '' }
 ]
 const dynasties = ['唐', '宋', '明', '汉', '魏晋', '南北朝', '隋', '五代十国', '辽', '金', '元']
-const scenes = ['日常', '通勤', '出游', '拍照', '结婚', '礼仪']
+const scenes = ['日常', '通勤', '出游', '拍照', '婚礼', '礼仪']
 
 // ===================== 推荐数据 =====================
 const loading = ref(false)
@@ -191,21 +222,49 @@ async function getRecommend() {
       skin_tone: skin_tone.value
     }
     const res = await axios.post('/api/recommend', payload)
-    const list = res.data['推荐方案'] || []
-    recommendList.value = list
-    if (list.length > 0) {
+    
+    // 【关键调试1】：在浏览器控制台强行打印后端发来的数据
+    console.log("🚀【调试】后端返回的原始数据:", res.data)
+    
+    const rawList = Array.isArray(res.data) ? res.data : (res.data['推荐方案'] || [])
+    
+    // 【关键修复】：保留所有后端原始字段（英文），不强行改成中文键名，防止模板报错
+    recommendList.value = rawList.map(item => {
+      return {
+        ...item, // 这一句最无敌，把后端的 id, name, meaning, style 统统原样保留
+        name: item.name || item.style || '传统汉服',
+        color: item.color || '经典配色',
+        pattern: item.pattern || '素雅无纹',
+        meaning: item.meaning || '暂无详细解读'
+      }
+    })
+
+    console.log("🎯【调试】准备渲染到页面的数据:", recommendList.value)
+
+    if (recommendList.value.length > 0) {
       currentIndex.value = 0
-      updateMeaningPanel(list[0])
+      updateMeaningPanel(recommendList.value[0])
     } else {
       patternMeaning.value = styleMeaning.value = comprehensiveMeaning.value = '—'
     }
   } catch (err) {
     console.error(err)
-    alert('请求失败，请检查后端是否启动！')
+    alert('请求失败，请检查网络或后端状态！')
     recommendList.value = []
   } finally {
     loading.value = false
   }
+}
+
+function updateMeaningPanel(item) {
+  if (!item) return
+  
+  // 以前显示的是名称，现在改为显示从后端传来的单独寓意
+  styleMeaning.value = item.style_meaning     // 显示"款式寓意"
+  patternMeaning.value = item.pattern_meaning // 显示"纹样寓意"
+  
+  // 下方显示大段的综合建议
+  comprehensiveMeaning.value = item.meaning 
 }
 
 function parseMeaning(meaningStr) {
@@ -223,16 +282,7 @@ function parseMeaning(meaningStr) {
   return { pattern: meaningStr, style: '传统制式，端庄典雅', comprehensive: meaningStr }
 }
 
-function updateMeaningPanel(item) {
-  patternMeaning.value = item.纹样寓意 || '—'
-  styleMeaning.value = item.制式解读 || '—'
-  comprehensiveMeaning.value = item.寓意 || '—'
-}
 
-function setActiveRecommendation(idx) {
-  currentIndex.value = idx
-  updateMeaningPanel(recommendList.value[idx])
-}
 
 // ===================== 节令感知 =====================
 async function fetchSeasonInfo() {
@@ -241,7 +291,6 @@ async function fetchSeasonInfo() {
     const data = res.data
     seasonInfoFromApi.value = data
     
-    // 添加默认值处理
     const season = data.season || '春'
     const fabric = data.fabric || '真丝'
     const layers = data.layers || '2-3层'
@@ -307,6 +356,35 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.recommend-container {
+  position: relative;
+  overflow-x: hidden;
+}
+/* 国风装饰纹样层 */
+.decor-clouds {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.decor-clouds i {
+  position: absolute;
+  font-size: 6rem;
+  color: #c9b696;
+  opacity: 0.12;
+  user-select: none;
+}
+.decor-clouds i:nth-child(1) { top: 3%; left: 1%; transform: rotate(-10deg); font-size: 5rem; }
+.decor-clouds i:nth-child(2) { bottom: 5%; right: 2%; transform: rotate(15deg); font-size: 5.5rem; opacity: 0.1; }
+.decor-clouds i:nth-child(3) { top: 20%; right: 5%; font-size: 4rem; opacity: 0.1; }
+.decor-clouds i:nth-child(4) { bottom: 15%; left: 3%; font-size: 4rem; transform: rotate(-5deg); }
+.decor-clouds i:nth-child(5) { top: 40%; left: -2%; font-size: 7rem; opacity: 0.08; }
+.decor-clouds i:nth-child(6) { bottom: 30%; right: -2%; font-size: 6rem; opacity: 0.09; transform: rotate(8deg); }
+
 .recommend-dashboard {
   max-width: 1400px;
   margin: 20px auto;
@@ -315,6 +393,8 @@ onMounted(() => {
   grid-template-columns: 280px 1fr 320px;
   gap: 24px;
   align-items: start;
+  position: relative;
+  z-index: 1;
 }
 .back-button {
   margin: 10px 20px;
@@ -326,6 +406,8 @@ onMounted(() => {
   border-radius: 30px;
   font-size: 0.9rem;
   width: fit-content;
+  position: relative;
+  z-index: 1;
 }
 .card-panel {
   background: rgba(255, 250, 240, 0.92);
@@ -361,12 +443,12 @@ input[type="range"] {
   width: 100%;
   accent-color: #b5654b;
 }
-.skin-options, .gender-options {
+.skin-options, .gender-options, .scene-options {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-.skin-btn, .gender-btn, .upload-btn {
+.skin-btn, .gender-btn, .option-btn {
   background: #f0e3d8;
   border: none;
   padding: 6px 14px;
@@ -375,13 +457,11 @@ input[type="range"] {
   font-size: 0.85rem;
   transition: 0.2s;
 }
-.skin-btn.active, .gender-btn.active, .upload-btn:hover {
+.skin-btn.active, .gender-btn.active, .option-btn.active {
   background: #b5654b;
   color: white;
   box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
-
-
 select, .btn-primary {
   width: 100%;
   padding: 10px 12px;

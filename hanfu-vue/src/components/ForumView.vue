@@ -337,7 +337,6 @@ h2 {
   border-radius: 20px;
   padding: 12px 16px;
   margin-bottom: 12px;
-  border-left: 5px solid #b5654b;
 }
 .post-header {
   display: flex;
@@ -389,7 +388,7 @@ h2 {
   border-radius: 15px;
   padding: 10px 12px;
   margin-bottom: 10px;
-  border-left: 3px solid #b5654b;
+  margin-left: 20px;
 }
 .comment-header {
   display: flex;
